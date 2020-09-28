@@ -43,15 +43,14 @@ class GazeTracking(object):
         """Detects the face and initialize Eye objects"""
         frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
         faces = self._face_detector(frame)
-        for i in range(len(faces)):
-            try:
-                landmarks = self._predictor(frame, faces[i])
-                self.eye_left = Eye(frame, landmarks, 0, self.calibration)
-                self.eye_right = Eye(frame, landmarks, 1, self.calibration)
+        try:
+            landmarks = self._predictor(frame, faces[0])
+            self.eye_left = Eye(frame, landmarks, 0, self.calibration)
+            self.eye_right = Eye(frame, landmarks, 1, self.calibration)
 
-            except IndexError:
-                self.eye_left = None
-                self.eye_right = None
+        except IndexError:
+            self.eye_left = None
+            self.eye_right = None
 
     def refresh(self, frame):
         """Refreshes the frame and analyzes it.
