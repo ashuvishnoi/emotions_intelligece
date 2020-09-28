@@ -4,6 +4,9 @@ import cv2
 import dlib
 from .eye import Eye
 from .calibration import Calibration
+from facenet_pytorch import MTCNN
+import torch
+import cv2 as cv
 
 
 class GazeTracking(object):
@@ -26,6 +29,8 @@ class GazeTracking(object):
         cwd = os.path.abspath(os.path.dirname(__file__))
         model_path = os.path.abspath(os.path.join(cwd, "trained_models/shape_predictor_68_face_landmarks.dat"))
         self._predictor = dlib.shape_predictor(model_path)
+        self.device = torch.device('cpu')
+        self.mtcnn = MTCNN(keep_all=True, device=self.device)
 
     @property
     def pupils_located(self):
@@ -39,18 +44,44 @@ class GazeTracking(object):
         except Exception:
             return False
 
-    def _analyze(self):
+    def _analyze(self, frame):
         """Detects the face and initialize Eye objects"""
-        frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+        # f_h, f_w, c = self.frame.shape
+        # gray = cv.cvtColor(self.frame, cv.COLOR_BGR2GRAY)
         faces = self._face_detector(frame)
-        try:
-            landmarks = self._predictor(frame, faces[0])
-            self.eye_left = Eye(frame, landmarks, 0, self.calibration)
-            self.eye_right = Eye(frame, landmarks, 1, self.calibration)
+        boxes, _ = self.mtcnn.detect(frame)
+        if boxes is not None:
+            for i in range(len(faces)):
+                try:
+                    x1, y1, x2, y2 = int(round(boxes[i][0])), int(round(boxes[i][1])), int(round(boxes[i][2])), int(
+                        round(boxes[i][3]))
+                    landmarks = self._predictor(frame, faces[i])
+                    self.eye_left = Eye(frame, landmarks, 0, self.calibration)
+                    self.eye_right = Eye(frame, landmarks, 1, self.calibration)
+                    frame = self.annotated_frame(frame)
+                    text = ""
 
-        except IndexError:
-            self.eye_left = None
-            self.eye_right = None
+                    if self.is_blinking():
+                        text = "Blinking"
+                    elif self.is_right():
+                        text = "Looking right"
+                    elif self.is_left():
+                        text = "Looking left"
+                    elif self.is_center():
+                        text = "Looking center"
+                    # frame = cv.rectangle(frame, (x1, y1), (x2, y2), color=[0, 255, 0], thickness=1)
+
+                    frame = cv.putText(frame, text=text, org=(x2 - 5, y2 - 3), fontFace=cv.FONT_HERSHEY_COMPLEX,
+                                       color=[0, 0, 200], fontScale=0.8, thickness=2)
+                    # cv2.putText(frame, text, (90, 60), cv2.FONT_HERSHEY_DUPLEX, 1.6, (147, 58, 31), 2)
+
+                except IndexError:
+                    self.eye_left = None
+                    self.eye_right = None
+            return frame
+        else:
+            print('No face detected')
+            return frame
 
     def refresh(self, frame):
         """Refreshes the frame and analyzes it.
@@ -58,8 +89,8 @@ class GazeTracking(object):
         Arguments:
             frame (numpy.ndarray): The frame to analyze
         """
-        self.frame = frame
-        self._analyze()
+        frame = self._analyze(frame)
+        return frame
 
     def pupil_left_coords(self):
         """Returns the coordinates of the left pupil"""
@@ -116,9 +147,9 @@ class GazeTracking(object):
             blinking_ratio = (self.eye_left.blinking + self.eye_right.blinking) / 2
             return blinking_ratio > 3.8
 
-    def annotated_frame(self):
+    def annotated_frame(self, frame):
         """Returns the main frame with pupils highlighted"""
-        frame = self.frame.copy()
+        # frame = self.frame.copy()
 
         if self.pupils_located:
             color = (0, 255, 0)
