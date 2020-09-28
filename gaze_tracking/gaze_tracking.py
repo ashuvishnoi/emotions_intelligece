@@ -83,7 +83,7 @@ class GazeTracking(object):
             print('No face detected')
             return frame
 
-    def refresh(self, frame):
+    def get(self, frame):
         """Refreshes the frame and analyzes it.
 
         Arguments:

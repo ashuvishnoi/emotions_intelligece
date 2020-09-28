@@ -19,7 +19,7 @@ while True:
     frame, emotion = er.recognise_emotion(frame, return_type='BGR')
 
     # get gaze detection
-    frame = gaze.refresh(frame)
+    frame = gaze.get(frame)
 
     cv2.imshow("Demo", frame)
     a.append(emotion)
